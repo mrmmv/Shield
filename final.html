@@ -1,0 +1,2387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Helmet Safety System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyA2X4hfUB5e5bCV76Y5oJFEK1MWR-ESsZA&libraries=geometry&callback=initMap" async defer></script>
+    <style>
+        :root {
+            --primary: #3498db;
+            --danger: #e74c3c;
+            --warning: #f39c12;
+            --success: #2ecc71;
+            --dark: #2c3e50;
+            --light: #ecf0f1;
+            --gray: #95a5a6;
+            --sidebar-width: 280px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        body {
+            background-color: #f5f7fa;
+            color: var(--dark);
+            overflow-x: hidden;
+            touch-action: pan-y;
+        }
+
+        /* Overlay */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 999;
+            display: none;
+        }
+
+        .overlay.active {
+            display: block;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: -280px;
+            width: var(--sidebar-width);
+            height: 100vh;
+            background-color: var(--dark);
+            color: white;
+            padding: 20px 0;
+            transition: all 0.3s ease;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .sidebar.active {
+            left: 0;
+        }
+
+        .logo {
+            text-align: center;
+            padding: 0 20px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .logo h2 {
+            font-size: 1.5rem;
+            margin-top: 10px;
+        }
+
+        .logo i {
+            font-size: 2.5rem;
+            color: var(--primary);
+        }
+
+        .nav-menu {
+            margin-top: 30px;
+        }
+
+        .nav-item {
+            padding: 15px 25px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+        }
+
+        .nav-item:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+
+        .nav-item.active {
+            background-color: var(--primary);
+        }
+
+        .nav-item i {
+            margin-right: 10px;
+            width: 20px;
+            text-align: center;
+        }
+
+        .developer-info {
+            padding: 20px;
+            margin-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+        }
+
+        .developer-info img {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin-bottom: 10px;
+            object-fit: cover;
+        }
+
+        .developer-info h3 {
+            margin-bottom: 5px;
+        }
+
+        .developer-info p {
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+
+        /* Main Content */
+        .main-content {
+            padding: 20px;
+            transition: all 0.3s ease;
+            min-height: 100vh;
+        }
+
+        .main-content.shifted {
+            transform: translateX(var(--sidebar-width));
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+
+        .menu-toggle {
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--dark);
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            color: var(--dark);
+            display: flex;
+            align-items: center;
+        }
+
+        .header h1 i {
+            margin-right: 10px;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            position: relative;
+        }
+
+        .user-info img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+            cursor: pointer;
+            object-fit: cover;
+        }
+
+        .user-dropdown {
+            position: absolute;
+            top: 50px;
+            right: 0;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 10px;
+            width: 200px;
+            z-index: 100;
+            display: none;
+        }
+
+        .user-dropdown.active {
+            display: block;
+        }
+
+        .user-dropdown-item {
+            padding: 8px 10px;
+            cursor: pointer;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+        }
+
+        .user-dropdown-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        .user-dropdown-item i {
+            margin-right: 8px;
+            width: 20px;
+            text-align: center;
+        }
+
+        /* Dashboard Cards */
+        .dashboard-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .card-title {
+            font-size: 1rem;
+            color: var(--gray);
+            font-weight: 500;
+        }
+
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .card-icon.helmet {
+            background-color: var(--primary);
+        }
+
+        .card-icon.alcohol {
+            background-color: var(--danger);
+        }
+
+        .card-icon.speed {
+            background-color: var(--warning);
+        }
+
+        .card-icon.ignition {
+            background-color: var(--success);
+        }
+
+        .card-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .card-status {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .status-safe {
+            background-color: rgba(46, 204, 113, 0.2);
+            color: var(--success);
+        }
+
+        .status-danger {
+            background-color: rgba(231, 76, 60, 0.2);
+            color: var(--danger);
+        }
+
+        .status-warning {
+            background-color: rgba(243, 156, 18, 0.2);
+            color: var(--warning);
+        }
+
+        /* Map and Data Section */
+        .data-section {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 992px) {
+            .data-section {
+                grid-template-columns: 2fr 1fr;
+            }
+        }
+
+        .map-container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            height: 400px;
+            position: relative;
+        }
+
+        .map-loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(255,255,255,0.8);
+            z-index: 10;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        #map, #tracking-map {
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+        }
+
+        .data-container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .data-title {
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+            color: var(--dark);
+            font-weight: 500;
+        }
+
+        .data-item {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .data-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .data-label {
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+
+        .data-value {
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        /* Alerts Section */
+        .alerts-section {
+            margin-top: 30px;
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .alert-item {
+            display: flex;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            background-color: #f8f9fa;
+        }
+
+        .alert-item.emergency {
+            border-left: 4px solid var(--danger);
+            background-color: rgba(231, 76, 60, 0.1);
+        }
+
+        .alert-item.warning {
+            border-left: 4px solid var(--warning);
+            background-color: rgba(243, 156, 18, 0.1);
+        }
+
+        .alert-icon {
+            margin-right: 15px;
+            font-size: 1.5rem;
+        }
+
+        .alert-icon.emergency {
+            color: var(--danger);
+        }
+
+        .alert-icon.warning {
+            color: var(--warning);
+        }
+
+        .alert-content {
+            flex: 1;
+        }
+
+        .alert-title {
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .alert-message {
+            font-size: 0.8rem;
+            color: var(--gray);
+            margin-bottom: 4px;
+        }
+
+        .alert-time {
+            font-size: 0.8rem;
+            color: var(--gray);
+        }
+
+        .alert-actions {
+            display: flex;
+            align-items: center;
+        }
+
+        .alert-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--gray);
+            margin-left: 10px;
+            transition: color 0.3s;
+        }
+
+        .alert-btn:hover {
+            color: var(--dark);
+        }
+
+        /* Developer Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            z-index: 1001;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            border-radius: 10px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            text-align: center;
+            overflow-y: auto;
+            max-height: 90vh;
+        }
+
+        .developer-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+        }
+
+        .developer-card {
+            flex: 1;
+            min-width: 250px;
+            background: #f9f9f9;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .developer-card img {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-bottom: 15px;
+        }
+
+        .developer-card h3 {
+            margin-bottom: 10px;
+            color: var(--dark);
+        }
+
+        .developer-card p {
+            margin-bottom: 5px;
+            color: var(--gray);
+            text-align: left;
+            font-size: 0.9rem;
+        }
+
+        .developer-bio {
+            margin-top: 15px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            text-align: left;
+        }
+
+        .close-modal {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-top: 20px;
+        }
+
+        .close-modal:hover {
+            background-color: #2980b9;
+        }
+
+        /* Add Contact Modal */
+        .add-contact-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            z-index: 1001;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .add-contact-content {
+            background-color: white;
+            border-radius: 10px;
+            padding: 30px;
+            width: 90%;
+            max-width: 400px;
+        }
+        
+        .add-contact-title {
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+            color: var(--dark);
+        }
+        
+        .add-contact-form .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .add-contact-form label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        .add-contact-form input, 
+        .add-contact-form select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+        
+        .add-contact-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 20px;
+            gap: 10px;
+        }
+        
+        /* Contact actions */
+        .contact-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .contact-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 5px;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .contact-btn.call {
+            color: var(--success);
+            background-color: rgba(46, 204, 113, 0.1);
+        }
+        
+        .contact-btn.edit {
+            color: var(--primary);
+            background-color: rgba(52, 152, 219, 0.1);
+        }
+        
+        .contact-btn.delete {
+            color: var(--danger);
+            background-color: rgba(231, 76, 60, 0.1);
+        }
+        
+        /* Add contact button */
+        .add-contact-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 10px 15px;
+            margin-top: 15px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        .add-contact-btn i {
+            margin-right: 8px;
+        }
+
+        /* Profile Picture Upload */
+        .profile-picture-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .profile-picture {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-bottom: 10px;
+            border: 3px solid var(--primary);
+        }
+
+        .upload-btn-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .upload-btn {
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            background-color: white;
+            padding: 8px 15px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .upload-btn-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        /* Page sections */
+        .page-section {
+            display: none;
+        }
+
+        .page-section.active {
+            display: block;
+        }
+
+        /* Settings Page */
+        .settings-form {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        .form-group input, 
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+
+        .form-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 30px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #2980b9;
+        }
+
+        /* Accident History */
+        .accident-list {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .accident-item {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .accident-item:last-child {
+            border-bottom: none;
+        }
+
+        .accident-info {
+            flex: 1;
+        }
+
+        .accident-date {
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+
+        .accident-severity {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin-left: 10px;
+        }
+
+        .severity-high {
+            background-color: rgba(231, 76, 60, 0.2);
+            color: var(--danger);
+        }
+
+        .severity-medium {
+            background-color: rgba(243, 156, 18, 0.2);
+            color: var(--warning);
+        }
+
+        .severity-low {
+            background-color: rgba(46, 204, 113, 0.2);
+            color: var(--success);
+        }
+
+        /* Emergency Contacts */
+        .contacts-list {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .contact-item {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+        }
+
+        .contact-item:last-child {
+            border-bottom: none;
+        }
+
+        .contact-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-size: 1.2rem;
+        }
+
+        .contact-info {
+            flex: 1;
+        }
+
+        .contact-name {
+            font-weight: 500;
+            margin-bottom: 3px;
+        }
+
+        .contact-number {
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+
+        .contact-action {
+            margin-left: 15px;
+        }
+
+        /* System Settings */
+        .system-settings {
+            background-color: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .setting-item {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .setting-item:last-child {
+            border-bottom: none;
+        }
+
+        .setting-label {
+            font-weight: 500;
+        }
+
+        .setting-description {
+            font-size: 0.9rem;
+            color: var(--gray);
+            margin-top: 5px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--primary);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        /* Reset Accident Button */
+        .reset-accident-btn {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            padding: 10px 15px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 500;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Overlay -->
+    <div class="overlay"></div>
+
+    <!-- Developer Modal -->
+    <div class="modal" id="developerModal">
+        <div class="modal-content">
+            <h2>About the Developers</h2>
+            <div class="developer-container">
+                <div class="developer-card">
+                    <img src="https://randomuser.me/api/portraits/men/32.jpg" alt="Developer 1">
+                    <h3>John Smith</h3>
+                    <p><i class="fas fa-envelope"></i> john.smith@example.com</p>
+                    <p><i class="fas fa-briefcase"></i> Senior IoT Developer</p>
+                    <div class="developer-bio">
+                        John is a seasoned IoT developer with over 8 years of experience in creating smart safety systems. 
+                        He specializes in embedded systems and sensor integration, having worked on numerous industrial 
+                        and consumer safety projects. John holds a Master's degree in Computer Engineering and is 
+                        passionate about creating technology that saves lives. In this project, he was responsible 
+                        for the hardware integration and real-time data processing components.
+                    </div>
+                </div>
+                <div class="developer-card">
+                    <img src="https://randomuser.me/api/portraits/women/44.jpg" alt="Developer 2">
+                    <h3>Sarah Johnson</h3>
+                    <p><i class="fas fa-envelope"></i> sarah.j@example.com</p>
+                    <p><i class="fas fa-briefcase"></i> Full Stack Developer</p>
+                    <div class="developer-bio">
+                        Sarah is a full-stack developer with expertise in web and mobile applications for safety monitoring systems. 
+                        With 5 years of experience in the field, she has developed several award-winning applications for 
+                        emergency response systems. Sarah focused on the frontend development and user experience design 
+                        for this project, ensuring the interface is intuitive and provides critical information at a glance. 
+                        She holds a degree in Human-Computer Interaction and is passionate about creating user-centered designs.
+                    </div>
+                </div>
+            </div>
+            <button class="close-modal">Close</button>
+        </div>
+    </div>
+
+    <!-- Add Contact Modal -->
+    <div class="add-contact-modal" id="addContactModal">
+        <div class="add-contact-content">
+            <div class="add-contact-title" id="contactModalTitle">Add New Contact</div>
+            <form class="add-contact-form" id="contactForm">
+                <input type="hidden" id="contactId">
+                <div class="form-group">
+                    <label for="contact-name">Name</label>
+                    <input type="text" id="contact-name" placeholder="Contact name" required>
+                </div>
+                <div class="form-group">
+                    <label for="contact-number">Phone Number</label>
+                    <input type="tel" id="contact-number" placeholder="Phone number" required>
+                </div>
+                <div class="form-group">
+                    <label for="contact-type">Relationship</label>
+                    <select id="contact-type" required>
+                        <option value="family">Family</option>
+                        <option value="friend">Friend</option>
+                        <option value="colleague">Colleague</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="add-contact-actions">
+                    <button type="button" class="btn" id="cancelContact">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="saveContact">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="logo">
+            <i class="fas fa-helmet-safety"></i>
+            <h2>Helmet Safety</h2>
+        </div>
+        <div class="nav-menu">
+            <div class="nav-item active" data-page="dashboard">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>Dashboard</span>
+            </div>
+            <div class="nav-item" data-page="tracking">
+                <i class="fas fa-map-marker-alt"></i>
+                <span>Live Tracking</span>
+            </div>
+            <div class="nav-item" data-page="accidents">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span>Accident History</span>
+            </div>
+            <div class="nav-item" data-page="settings">
+                <i class="fas fa-user-cog"></i>
+                <span>User Settings</span>
+            </div>
+            <div class="nav-item" data-page="emergency">
+                <i class="fas fa-phone-alt"></i>
+                <span>Emergency Contacts</span>
+            </div>
+            <div class="nav-item" data-page="system">
+                <i class="fas fa-cog"></i>
+                <span>System Settings</span>
+            </div>
+            <div class="nav-item" id="developerBtn">
+                <i class="fas fa-user-tie"></i>
+                <span>About Developer</span>
+            </div>
+        </div>
+        <div class="developer-info">
+            <img src="https://randomuser.me/api/portraits/men/75.jpg" alt="Developer">
+            <h3>System Developers</h3>
+            <p>Helmet Safety System v2.0</p>
+        </div>
+    </div>
+
+    <!-- Swipe area for mobile -->
+    <div class="swipe-area"></div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="header">
+            <div class="menu-toggle">
+                <i class="fas fa-bars"></i>
+            </div>
+            <h1><i class="fas fa-tachometer-alt"></i>Dashboard</h1>
+            <div class="user-info">
+                <img src="https://via.placeholder.com/40" alt="User" id="user-avatar">
+                <span id="user-display-name">Rider</span>
+                <div class="user-dropdown" id="userDropdown">
+                    <div class="user-dropdown-item" data-user="user_001">
+                        <i class="fas fa-user"></i> Rider 1
+                    </div>
+                    <div class="user-dropdown-item" data-user="user_002">
+                        <i class="fas fa-user"></i> Rider 2
+                    </div>
+                    <div class="user-dropdown-item" data-user="user_003">
+                        <i class="fas fa-user"></i> Rider 3
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Dashboard Page -->
+        <div class="page-section active" id="dashboard-page">
+            <!-- Dashboard Cards -->
+            <div class="dashboard-cards">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Helmet Status</div>
+                        <div class="card-icon helmet">
+                            <i class="fas fa-helmet-safety"></i>
+                        </div>
+                    </div>
+                    <div class="card-value" id="helmet-status">-</div>
+                    <div class="card-status" id="helmet-status-badge">-</div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Alcohol Test</div>
+                        <div class="card-icon alcohol">
+                            <i class="fas fa-wine-bottle"></i>
+                        </div>
+                    </div>
+                    <div class="card-value" id="alcohol-level">-</div>
+                    <div class="card-status" id="alcohol-status-badge">-</div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Current Speed</div>
+                        <div class="card-icon speed">
+                            <i class="fas fa-tachometer-alt"></i>
+                        </div>
+                    </div>
+                    <div class="card-value" id="current-speed">-</div>
+                    <div class="card-status" id="speed-status-badge">km/h</div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Ignition Status</div>
+                        <div class="card-icon ignition">
+                            <i class="fas fa-power-off"></i>
+                        </div>
+                    </div>
+                    <div class="card-value" id="ignition-status">-</div>
+                    <div class="card-status" id="ignition-status-badge">-</div>
+                </div>
+            </div>
+            
+            <!-- Map and Data Section -->
+            <div class="data-section">
+                <div class="map-container">
+                    <div class="data-title">Live Location</div>
+                    <div id="map">
+                        <div class="map-loading">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="data-container">
+                    <div class="data-title">Rider Information</div>
+                    
+                    <div class="data-item">
+                        <div class="data-label">Last Update</div>
+                        <div class="data-value" id="last-update">-</div>
+                    </div>
+                    
+                    <div class="data-item">
+                        <div class="data-label">Current Location</div>
+                        <div class="data-value" id="current-location">-</div>
+                    </div>
+                    
+                    <div class="data-item">
+                        <div class="data-label">Battery Level</div>
+                        <div class="data-value" id="battery-level">-</div>
+                    </div>
+                    
+                    <div class="data-item">
+                        <div class="data-label">Signal Strength</div>
+                        <div class="data-value" id="signal-strength">-</div>
+                    </div>
+                    
+                    <div class="data-item">
+                        <div class="data-label">System Health</div>
+                        <div class="data-value" id="system-health">-</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Alerts Section -->
+            <div class="alerts-section">
+                <div class="data-title">Recent Alerts</div>
+                <div id="alerts-container">
+                    <!-- Alerts will be populated here from Firebase -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- Live Tracking Page -->
+        <div class="page-section" id="tracking-page">
+            <div class="map-container" style="height: 600px;">
+                <div class="data-title">Live Tracking</div>
+                <div id="tracking-map">
+                    <div class="map-loading">
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="alerts-section">
+                <div class="data-title">Tracking Information</div>
+                <div class="data-item">
+                    <div class="data-label">Current Speed</div>
+                    <div class="data-value" id="tracking-speed">- km/h</div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">Location</div>
+                    <div class="data-value" id="tracking-location">-</div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">Distance Traveled</div>
+                    <div class="data-value" id="tracking-distance">- km</div>
+                </div>
+                <div class="data-item">
+                    <div class="data-label">Trip Duration</div>
+                    <div class="data-value" id="tracking-duration">-</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Accident History Page -->
+        <div class="page-section" id="accidents-page">
+            <div class="data-title">Accident History</div>
+            <div class="accident-list" id="accidents-container">
+                <!-- Accidents will be populated here from Firebase -->
+                <div class="accident-item">
+                    <div class="accident-info">
+                        <div>No accident records found</div>
+                        <div class="accident-date">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- User Settings Page -->
+        <div class="page-section" id="settings-page">
+            <div class="data-title">User Settings</div>
+            <div class="settings-form">
+                <div class="profile-picture-container">
+                    <img src="https://via.placeholder.com/120" alt="Profile Picture" class="profile-picture" id="profile-picture">
+                    <div class="upload-btn-wrapper">
+                        <button class="upload-btn">Upload Photo</button>
+                        <input type="file" id="profile-upload" accept="image/*">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="user-name">Name</label>
+                    <input type="text" id="user-name" placeholder="Enter your name">
+                </div>
+                <div class="form-group">
+                    <label for="user-email">Email</label>
+                    <input type="email" id="user-email" placeholder="Enter your email">
+                </div>
+                <div class="form-group">
+                    <label for="user-phone">Phone Number</label>
+                    <input type="tel" id="user-phone" placeholder="Enter your phone number">
+                </div>
+                <div class="form-group">
+                    <label for="user-vehicle">Vehicle Type</label>
+                    <select id="user-vehicle">
+                        <option value="motorcycle">Motorcycle</option>
+                        <option value="scooter">Scooter</option>
+                        <option value="bicycle">Bicycle</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-primary" id="save-settings">Save Settings</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Emergency Contacts Page -->
+        <div class="page-section" id="emergency-page">
+            <div class="data-title">Emergency Contacts</div>
+            <div class="contacts-list" id="contacts-container">
+                <!-- Contacts will be populated here from Firebase -->
+                <div class="contact-item">
+                    <div class="contact-icon">
+                        <i class="fas fa-ambulance"></i>
+                    </div>
+                    <div class="contact-info">
+                        <div class="contact-name">Emergency Services</div>
+                        <div class="contact-number">112</div>
+                    </div>
+                    <div class="contact-actions">
+                        <button class="contact-btn call" title="Call">
+                            <i class="fas fa-phone-alt"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <button class="add-contact-btn" id="addContactBtn">
+                <i class="fas fa-plus"></i> Add Contact
+            </button>
+        </div>
+        
+        <!-- System Settings Page -->
+        <div class="page-section" id="system-page">
+            <div class="data-title">System Settings</div>
+            <div class="system-settings">
+                <div class="setting-item">
+                    <div>
+                        <div class="setting-label">Helmet Detection</div>
+                        <div class="setting-description">Enable/disable helmet detection system</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="helmet-detection" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <div>
+                        <div class="setting-label">Alcohol Detection</div>
+                        <div class="setting-description">Enable/disable alcohol detection system</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="alcohol-detection" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <div>
+                        <div class="setting-label">Speed Alerts</div>
+                        <div class="setting-description">Enable/disable speed limit alerts</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="speed-alerts" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <div>
+                        <div class="setting-label">Emergency Alerts</div>
+                        <div class="setting-description">Enable/disable emergency alerts</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="emergency-alerts" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="setting-item">
+                    <div>
+                        <div class="setting-label">Location Tracking</div>
+                        <div class="setting-description">Enable/disable GPS location tracking</div>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="location-tracking" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Accident Button -->
+    <button id="resetAccidentBtn" class="reset-accident-btn">
+        <i class="fas fa-check-circle"></i> Acknowledge Accident
+    </button>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDIMtKQqlR7_R35lkrDWVn1agPnGDaAUiY",
+            authDomain: "helmet-alert-system.firebaseapp.com",
+            databaseURL: "https://helmet-alert-system-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "helmet-alert-system",
+            messagingSenderId: "426356613178",
+            appId: "1:426356613178:web:4238d6c44f20331f091503"
+        };
+        
+        // Initialize Firebase (without storage)
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        
+        // DOM Elements
+        const sidebar = document.querySelector('.sidebar');
+        const mainContent = document.querySelector('.main-content');
+        const menuToggle = document.querySelector('.menu-toggle');
+        const overlay = document.querySelector('.overlay');
+        const navItems = document.querySelectorAll('.nav-item');
+        const developerBtn = document.getElementById('developerBtn');
+        const developerModal = document.getElementById('developerModal');
+        const closeModal = document.querySelector('.close-modal');
+        const swipeArea = document.querySelector('.swipe-area');
+        const pageSections = document.querySelectorAll('.page-section');
+        const addContactModal = document.getElementById('addContactModal');
+        const cancelContactBtn = document.getElementById('cancelContact');
+        const saveContactBtn = document.getElementById('saveContact');
+        const contactForm = document.getElementById('contactForm');
+        const addContactBtn = document.getElementById('addContactBtn');
+        const saveSettingsBtn = document.getElementById('save-settings');
+        const userAvatar = document.getElementById('user-avatar');
+        const userDisplayName = document.getElementById('user-display-name');
+        const userDropdown = document.getElementById('userDropdown');
+        const profilePicture = document.getElementById('profile-picture');
+        const profileUpload = document.getElementById('profile-upload');
+        const resetAccidentBtn = document.getElementById('resetAccidentBtn');
+        
+        // Google Maps variables
+        let map;
+        let trackingMap;
+        let marker;
+        let trackingMarker;
+        let pathCoordinates = [];
+        let pathPolyline;
+        let tripStartTime = null;
+        let mapInitialized = false;
+        let trackingMapInitialized = false;
+        
+        // Accident marker variables
+        let accidentMarker;
+        let isAccidentMarkerBlinking = false;
+        let accidentMarkerInterval;
+        
+        // Current user ID and data
+        let userId = 'user_001';
+        let currentUserData = {};
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEventListeners();
+            loadUserSettings();
+            loadEmergencyContacts();
+            startTripTimer();
+            
+            // Set initial user
+            switchUser(userId);
+        });
+
+        function initMap() {
+            // Default location (Manila coordinates)
+            const defaultLocation = { lat: 14.5995, lng: 120.9842 };
+            
+            // Check if map element exists
+            const mapElement = document.getElementById("map");
+            if (!mapElement) return;
+            
+            try {
+                // Remove loading spinner
+                const loadingElement = mapElement.querySelector('.map-loading');
+                if (loadingElement) loadingElement.remove();
+                
+                map = new google.maps.Map(mapElement, {
+                    zoom: 15,
+                    center: defaultLocation,
+                    mapTypeId: "roadmap",
+                });
+                
+                marker = new google.maps.Marker({
+                    position: defaultLocation,
+                    map: map,
+                    title: "Current Location",
+                    icon: {
+                        url: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png"
+                    }
+                });
+                
+                mapInitialized = true;
+                setupLocationTracking();
+                setupAccidentDetection();
+            } catch (error) {
+                console.error("Error initializing map:", error);
+                mapElement.innerHTML = "Error loading map. Please refresh the page.";
+            }
+        }
+
+        function initTrackingMap() {
+            const defaultLocation = { lat: 14.5995, lng: 120.9842 };
+            
+            // Check if tracking map element exists
+            const trackingMapElement = document.getElementById("tracking-map");
+            if (!trackingMapElement) return;
+            
+            try {
+                // Remove loading spinner
+                const loadingElement = trackingMapElement.querySelector('.map-loading');
+                if (loadingElement) loadingElement.remove();
+                
+                trackingMap = new google.maps.Map(trackingMapElement, {
+                    zoom: 15,
+                    center: defaultLocation,
+                    mapTypeId: "roadmap",
+                    streetViewControl: false,
+                    mapTypeControl: false,
+                    fullscreenControl: true
+                });
+                
+                trackingMarker = new google.maps.Marker({
+                    position: defaultLocation,
+                    map: trackingMap,
+                    title: "Your Location",
+                    icon: {
+                        url: "https://maps.google.com/mapfiles/ms/icons/red-dot.png"
+                    }
+                });
+                
+                // Info window for marker
+                const infoWindow = new google.maps.InfoWindow({
+                    content: "Loading location..."
+                });
+                
+                trackingMarker.addListener('click', () => {
+                    infoWindow.open(trackingMap, trackingMarker);
+                });
+                
+                pathPolyline = new google.maps.Polyline({
+                    path: pathCoordinates,
+                    geodesic: true,
+                    strokeColor: "#FF0000",
+                    strokeOpacity: 1.0,
+                    strokeWeight: 3,
+                    map: trackingMap
+                });
+                
+                trackingMapInitialized = true;
+                setupLocationTracking();
+            } catch (error) {
+                console.error("Error initializing tracking map:", error);
+                trackingMapElement.innerHTML = "Error loading tracking map. Please refresh the page.";
+            }
+        }
+
+        function setupLocationTracking() {
+            // Center map when location updates
+            database.ref(`tracking/${userId}/location`).on('value', (snapshot) => {
+                if (snapshot.exists()) {
+                    const location = snapshot.val();
+                    const pos = new google.maps.LatLng(location.lat, location.lng);
+                    
+                    // Update the tracking map if initialized
+                    if (trackingMapInitialized) {
+                        trackingMap.panTo(pos);
+                        trackingMarker.setPosition(pos);
+                        
+                        // Add to path coordinates
+                        pathCoordinates.push(pos);
+                        pathPolyline.setPath(pathCoordinates);
+                        
+                        // Update info window
+                        const infoWindow = new google.maps.InfoWindow({
+                            content: `
+                                <div style="font-weight: bold;">Current Location</div>
+                                <div>Latitude: ${location.lat.toFixed(6)}</div>
+                                <div>Longitude: ${location.lng.toFixed(6)}</div>
+                                <div>Speed: ${document.getElementById('tracking-speed').textContent}</div>
+                            `
+                        });
+                    }
+                    
+                    // Update the dashboard map if initialized
+                    if (mapInitialized) {
+                        marker.setPosition(pos);
+                        map.panTo(pos);
+                    }
+                    
+                    // Update distance traveled
+                    if (pathCoordinates.length > 1) {
+                        const lastPos = pathCoordinates[pathCoordinates.length - 2];
+                        const distance = google.maps.geometry.spherical.computeDistanceBetween(lastPos, pos);
+                        const totalDistance = parseFloat(document.getElementById('tracking-distance').textContent) || 0;
+                        document.getElementById('tracking-distance').textContent = (totalDistance + distance/1000).toFixed(2) + ' km';
+                    }
+                    
+                    // Update location text
+                    const locationText = `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`;
+                    document.getElementById('current-location').textContent = locationText;
+                    document.getElementById('tracking-location').textContent = locationText;
+                    
+                    // Update last update time
+                    const now = new Date();
+                    document.getElementById('last-update').textContent = now.toLocaleTimeString();
+                }
+            });
+        }
+        
+        function setupAccidentDetection() {
+            database.ref(`accidents/${userId}/latest`).on('value', (snapshot) => {
+                if (snapshot.exists()) {
+                    const accident = snapshot.val();
+                    if (accident.status !== 'resolved') {
+                        showAccidentOnMap(accident);
+                        addAlert('Accident Detected', 'A possible accident has been detected', 'emergency', 'fa-car-crash');
+                        resetAccidentBtn.style.display = 'block';
+                    } else {
+                        resetAccidentMarker();
+                    }
+                } else {
+                    resetAccidentMarker();
+                }
+            });
+        }
+        
+        function showAccidentOnMap(accident) {
+            if (!accident.location) return;
+            
+            const accidentLocation = new google.maps.LatLng(accident.location.lat, accident.location.lng);
+            
+            // Remove previous accident marker if exists
+            if (accidentMarker) {
+                accidentMarker.setMap(null);
+            }
+            
+            // Clear any existing blinking interval
+            if (accidentMarkerInterval) {
+                clearInterval(accidentMarkerInterval);
+            }
+            
+            // Create new accident marker
+            accidentMarker = new google.maps.Marker({
+                position: accidentLocation,
+                map: map,
+                title: "Accident Location",
+                icon: {
+                    url: "http://maps.google.com/mapfiles/ms/icons/red-dot.png"
+                }
+            });
+            
+            // Add info window
+            const infoWindow = new google.maps.InfoWindow({
+                content: `
+                    <div style="font-weight: bold; color: red;">ACCIDENT DETECTED</div>
+                    <div>Time: ${new Date(accident.timestamp).toLocaleString()}</div>
+                    <div>Severity: ${accident.severity}</div>
+                    <div>Possible causes: ${accident.possibleCauses || 'Unknown'}</div>
+                `
+            });
+            
+            infoWindow.open(map, accidentMarker);
+            accidentMarker.addListener('click', () => infoWindow.open(map, accidentMarker));
+            
+            // Make marker blink
+            isAccidentMarkerBlinking = true;
+            let isVisible = true;
+            
+            accidentMarkerInterval = setInterval(() => {
+                if (!isAccidentMarkerBlinking) {
+                    clearInterval(accidentMarkerInterval);
+                    return;
+                }
+                
+                isVisible = !isVisible;
+                accidentMarker.setVisible(isVisible);
+            }, 500); // Blink every 500ms
+            
+            // Center map on accident location
+            map.panTo(accidentLocation);
+            if (trackingMap) {
+                trackingMap.panTo(accidentLocation);
+            }
+            
+            // Add to accident history if not already there
+            if (!accident.addedToHistory) {
+                const accidentId = database.ref(`accidents/${userId}/history`).push().key;
+                database.ref(`accidents/${userId}/history/${accidentId}`).set({
+                    ...accident,
+                    timestamp: accident.timestamp || new Date().getTime(),
+                    addedToHistory: true
+                });
+                
+                // Mark as added to history
+                database.ref(`accidents/${userId}/latest/addedToHistory`).set(true);
+            }
+        }
+        
+        function resetAccidentMarker() {
+            isAccidentMarkerBlinking = false;
+            resetAccidentBtn.style.display = 'none';
+            
+            if (accidentMarker) {
+                accidentMarker.setVisible(false);
+                accidentMarker.setMap(null);
+                accidentMarker = null;
+            }
+            
+            if (accidentMarkerInterval) {
+                clearInterval(accidentMarkerInterval);
+                accidentMarkerInterval = null;
+            }
+        }
+        
+        function acknowledgeAccident() {
+            // Update the accident status in Firebase
+            database.ref(`accidents/${userId}/latest/status`).set('resolved')
+                .then(() => {
+                    resetAccidentMarker();
+                })
+                .catch((error) => {
+                    console.error("Error acknowledging accident:", error);
+                    alert("Failed to acknowledge accident. Please try again.");
+                });
+        }
+        
+        function startTripTimer() {
+            tripStartTime = new Date();
+            setInterval(() => {
+                const now = new Date();
+                const duration = Math.floor((now - tripStartTime) / 1000);
+                const hours = Math.floor(duration / 3600);
+                const minutes = Math.floor((duration % 3600) / 60);
+                const seconds = duration % 60;
+                
+                document.getElementById('tracking-duration').textContent = 
+                    `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+        
+        function switchUser(newUserId) {
+            userId = newUserId;
+            
+            // Load user data from Firebase
+            database.ref(`users/${userId}`).once('value').then((snapshot) => {
+                currentUserData = snapshot.val() || {};
+                
+                // Update UI with user data
+                userDisplayName.textContent = currentUserData.name || 'Rider';
+                userAvatar.src = currentUserData.avatar || 'https://via.placeholder.com/40';
+                
+                // Reset tracking data
+                pathCoordinates = [];
+                if (pathPolyline) {
+                    pathPolyline.setPath([]);
+                }
+                document.getElementById('tracking-distance').textContent = '0 km';
+                tripStartTime = new Date();
+                
+                // Reload data for new user
+                setupFirebaseListeners();
+                loadUserSettings();
+                loadEmergencyContacts();
+            });
+        }
+        
+        function setupFirebaseListeners() {
+            // Remove previous listeners to avoid duplicates
+            database.ref(`users/${userId}`).off();
+            database.ref(`tracking/${userId}`).off();
+            database.ref(`alerts/${userId}`).off();
+            database.ref(`accidents/${userId}`).off();
+            
+            // Helmet status
+            database.ref(`users/${userId}/helmet_status`).on('value', (snapshot) => {
+                const isWorn = snapshot.val();
+                document.getElementById('helmet-status').textContent = isWorn ? "WORN" : "OFF";
+                const badge = document.getElementById('helmet-status-badge');
+                badge.textContent = isWorn ? "ACTIVE" : "INACTIVE";
+                badge.className = isWorn ? "card-status status-safe" : "card-status status-danger";
+                
+                // Add alert if helmet is removed while ignition is on
+                database.ref(`users/${userId}/ignition_status`).once('value').then((ignitionSnapshot) => {
+                    if (ignitionSnapshot.val() && !isWorn) {
+                        addAlert('Helmet Removed', 'Helmet was removed while vehicle is running', 'emergency', 'fa-exclamation-circle');
+                    }
+                });
+            });
+            
+            // Alcohol status
+            database.ref(`users/${userId}/alcohol_status`).on('value', (snapshot) => {
+                const alcoholDetected = snapshot.val();
+                document.getElementById('alcohol-level').textContent = alcoholDetected ? "0.08%" : "0.00%";
+                const badge = document.getElementById('alcohol-status-badge');
+                badge.textContent = alcoholDetected ? "FAILED" : "PASSED";
+                badge.className = alcoholDetected ? "card-status status-danger" : "card-status status-safe";
+                
+                if (alcoholDetected) {
+                    addAlert('Alcohol Detected', 'Rider has alcohol in their system', 'emergency', 'fa-wine-bottle');
+                }
+            });
+            
+            // Ignition status
+            database.ref(`users/${userId}/ignition_status`).on('value', (snapshot) => {
+                const isOn = snapshot.val();
+                document.getElementById('ignition-status').textContent = isOn ? "ON" : "OFF";
+                const badge = document.getElementById('ignition-status-badge');
+                badge.textContent = isOn ? "RUNNING" : "OFF";
+                badge.className = isOn ? "card-status status-safe" : "card-status status-danger";
+            });
+            
+            // GPS tracking
+            database.ref(`tracking/${userId}`).on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    // Update speed
+                    const speed = Math.round(data.speed || 0);
+                    document.getElementById('current-speed').textContent = speed;
+                    document.getElementById('tracking-speed').textContent = `${speed} km/h`;
+                    
+                    // Update speed status
+                    const speedBadge = document.getElementById('speed-status-badge');
+                    if (speed > 80) {
+                        speedBadge.className = "card-status status-danger";
+                        addAlert('High Speed', `Rider is going ${speed} km/h`, 'warning', 'fa-tachometer-alt');
+                    } else if (speed > 50) {
+                        speedBadge.className = "card-status status-warning";
+                    } else {
+                        speedBadge.className = "card-status status-safe";
+                    }
+                }
+            });
+            
+            // Battery level
+            database.ref(`users/${userId}/battery_level`).on('value', (snapshot) => {
+                const battery = snapshot.val() || 100;
+                document.getElementById('battery-level').textContent = `${battery}%`;
+                
+                if (battery < 20) {
+                    addAlert('Low Battery', 'Helmet battery is running low', 'warning', 'fa-battery-quarter');
+                }
+            });
+            
+            // Signal strength
+            database.ref(`users/${userId}/signal_strength`).on('value', (snapshot) => {
+                const strength = snapshot.val();
+                if (strength) {
+                    const strengths = ["Poor", "Fair", "Good", "Excellent"];
+                    document.getElementById('signal-strength').textContent = strengths[strength];
+                    
+                    if (strength === 0) {
+                        addAlert('Weak Signal', 'Device has poor network connection', 'warning', 'fa-signal');
+                    }
+                }
+            });
+            
+            // System health
+            database.ref(`users/${userId}/system_health`).on('value', (snapshot) => {
+                const health = snapshot.val();
+                if (health) {
+                    document.getElementById('system-health').textContent = health;
+                    
+                    if (health.includes('Issue')) {
+                        addAlert('System Issue', health, 'emergency', 'fa-exclamation-triangle');
+                    }
+                }
+            });
+            
+            // Alerts
+            database.ref(`alerts/${userId}`).limitToLast(3).on('value', (snapshot) => {
+                const alertsContainer = document.getElementById('alerts-container');
+                alertsContainer.innerHTML = '';
+                
+                snapshot.forEach((childSnapshot) => {
+                    const alert = childSnapshot.val();
+                    addAlertToUI(alert);
+                });
+            });
+            
+            // Accident history
+            database.ref(`accidents/${userId}/history`).limitToLast(5).on('value', (snapshot) => {
+                const accidentsContainer = document.getElementById('accidents-container');
+                accidentsContainer.innerHTML = '';
+                
+                if (snapshot.exists()) {
+                    snapshot.forEach((childSnapshot) => {
+                        const accident = childSnapshot.val();
+                        addAccidentToUI(accident);
+                    });
+                } else {
+                    accidentsContainer.innerHTML = `
+                        <div class="accident-item">
+                            <div class="accident-info">
+                                <div>No accident records found</div>
+                                <div class="accident-date">-</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+        }
+        
+        function addAlert(title, message, type, icon) {
+            const alertId = database.ref(`alerts/${userId}`).push().key;
+            const alertData = {
+                title: title,
+                message: message,
+                type: type,
+                icon: icon,
+                timestamp: new Date().getTime(),
+                read: false
+            };
+            
+            database.ref(`alerts/${userId}/${alertId}`).set(alertData);
+        }
+        
+        function addAlertToUI(alert) {
+            const alertsContainer = document.getElementById('alerts-container');
+            const alertElement = document.createElement('div');
+            alertElement.className = `alert-item ${alert.type}`;
+            
+            alertElement.innerHTML = `
+                <div class="alert-icon ${alert.type}">
+                    <i class="fas ${alert.icon}"></i>
+                </div>
+                <div class="alert-content">
+                    <div class="alert-title">${alert.title}</div>
+                    <div class="alert-message">${alert.message}</div>
+                    <div class="alert-time">${formatTime(alert.timestamp)}</div>
+                </div>
+                <div class="alert-actions">
+                    ${alert.type === 'emergency' ? 
+                        '<button class="alert-btn"><i class="fas fa-phone-alt"></i></button>' : 
+                        '<button class="alert-btn"><i class="fas fa-info-circle"></i></button>'}
+                </div>
+            `;
+            
+            alertsContainer.appendChild(alertElement);
+        }
+        
+        function addAccidentToUI(accident) {
+            const accidentsContainer = document.getElementById('accidents-container');
+            const accidentElement = document.createElement('div');
+            accidentElement.className = 'accident-item';
+            
+            // Determine severity class
+            let severityClass = 'severity-low';
+            if (accident.severity === 'high') severityClass = 'severity-high';
+            else if (accident.severity === 'medium') severityClass = 'severity-medium';
+            
+            accidentElement.innerHTML = `
+                <div class="accident-info">
+                    <div>${accident.type || 'Accident'} <span class="accident-severity ${severityClass}">${accident.severity || 'unknown'}</span></div>
+                    <div class="accident-date">${formatTime(accident.timestamp)}</div>
+                </div>
+                <div>
+                    <button class="alert-btn"><i class="fas fa-info-circle"></i></button>
+                </div>
+            `;
+            
+            accidentsContainer.appendChild(accidentElement);
+        }
+        
+        function loadUserSettings() {
+            database.ref(`settings/${userId}`).once('value').then((snapshot) => {
+                const settings = snapshot.val();
+                
+                // Set default values if no settings exist
+                if (!settings) {
+                    const defaultSettings = {
+                        name: currentUserData.name || 'Rider',
+                        email: currentUserData.email || '',
+                        phone: currentUserData.phone || '',
+                        vehicle: currentUserData.vehicle || 'motorcycle',
+                        updatedAt: new Date().getTime()
+                    };
+                    database.ref(`settings/${userId}`).set(defaultSettings);
+                    settings = defaultSettings;
+                }
+                
+                // Update form fields
+                document.getElementById('user-name').value = settings.name || '';
+                document.getElementById('user-email').value = settings.email || '';
+                document.getElementById('user-phone').value = settings.phone || '';
+                document.getElementById('user-vehicle').value = settings.vehicle || 'motorcycle';
+                
+                // Load profile picture if available
+                if (settings.profilePicture) {
+                    // Check if it's a Base64 string or URL (for backward compatibility)
+                    if (settings.profilePicture.startsWith('data:image')) {
+                        profilePicture.src = settings.profilePicture;
+                        userAvatar.src = settings.profilePicture;
+                    } else {
+                        // Fallback for old URL-based images
+                        profilePicture.src = settings.profilePicture;
+                        userAvatar.src = settings.profilePicture;
+                    }
+                } else {
+                    profilePicture.src = currentUserData.avatar || 'https://via.placeholder.com/120';
+                    userAvatar.src = currentUserData.avatar || 'https://via.placeholder.com/40';
+                }
+            });
+        }
+        
+        function uploadProfilePicture(file) {
+            // Validate file type
+            if (!file.type.match('image.*')) {
+                alert('Please select an image file (JPEG, PNG, etc.)');
+                return;
+            }
+
+            // Validate file size (2MB max)
+            if (file.size > 2 * 1024 * 1024) {
+                alert('File is too large. Please select an image smaller than 2MB.');
+                return;
+            }
+
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                const base64Image = e.target.result;
+                
+                // Update profile picture in database and UI
+                database.ref(`settings/${userId}`).update({
+                    profilePicture: base64Image,
+                    updatedAt: new Date().getTime()
+                })
+                .then(() => {
+                    profilePicture.src = base64Image;
+                    userAvatar.src = base64Image;
+                    alert('Profile picture updated successfully!');
+                })
+                .catch((error) => {
+                    alert('Error saving profile picture: ' + error.message);
+                });
+            };
+            
+            reader.onerror = function(error) {
+                alert('Error reading file: ' + error.message);
+            };
+            
+            // Read the file as Data URL (Base64)
+            reader.readAsDataURL(file);
+        }
+
+        function saveUserSettings() {
+            const settings = {
+                name: document.getElementById('user-name').value,
+                email: document.getElementById('user-email').value,
+                phone: document.getElementById('user-phone').value,
+                vehicle: document.getElementById('user-vehicle').value,
+                updatedAt: new Date().getTime()
+            };
+            
+            // Preserve existing profile picture if not changed
+            if (profilePicture.src.startsWith('data:image')) {
+                settings.profilePicture = profilePicture.src;
+            }
+            
+            database.ref(`settings/${userId}`).update(settings)
+                .then(() => {
+                    alert('Settings saved successfully!');
+                    // Update current user display name if changed
+                    userDisplayName.textContent = settings.name;
+                })
+                .catch((error) => {
+                    alert('Error saving settings: ' + error.message);
+                });
+        }
+        
+        function loadEmergencyContacts() {
+            database.ref(`emergency_contacts/${userId}`).on('value', (snapshot) => {
+                const contactsContainer = document.getElementById('contacts-container');
+                contactsContainer.innerHTML = '';
+                
+                if (snapshot.exists()) {
+                    snapshot.forEach((childSnapshot) => {
+                        const contact = childSnapshot.val();
+                        contact.id = childSnapshot.key;
+                        addContactToUI(contact);
+                    });
+                }
+                
+                // Add default emergency services contact (can't be deleted)
+                const defaultContact = {
+                    id: 'default',
+                    name: 'Emergency Services',
+                    number: '112',
+                    type: 'default'
+                };
+                addContactToUI(defaultContact);
+            });
+        }
+        
+        function addContactToUI(contact) {
+            const contactsContainer = document.getElementById('contacts-container');
+            const contactElement = document.createElement('div');
+            contactElement.className = 'contact-item';
+            contactElement.dataset.id = contact.id;
+            
+            // Determine icon based on contact type
+            let icon = 'fa-user';
+            if (contact.type === 'default') icon = 'fa-ambulance';
+            else if (contact.type === 'family') icon = 'fa-home';
+            else if (contact.type === 'friend') icon = 'fa-user-friends';
+            
+            contactElement.innerHTML = `
+                <div class="contact-icon">
+                    <i class="fas ${icon}"></i>
+                </div>
+                <div class="contact-info">
+                    <div class="contact-name">${contact.name}</div>
+                    <div class="contact-number">${contact.number}</div>
+                </div>
+                <div class="contact-actions">
+                    <button class="contact-btn call" title="Call">
+                        <i class="fas fa-phone-alt"></i>
+                    </button>
+                    ${contact.type === 'default' ? '' : `
+                    <button class="contact-btn edit" title="Edit">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="contact-btn delete" title="Delete">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                    `}
+                </div>
+            `;
+            
+            contactsContainer.appendChild(contactElement);
+            
+            // Add event listeners for the buttons
+            if (contact.type !== 'default') {
+                const editBtn = contactElement.querySelector('.edit');
+                const deleteBtn = contactElement.querySelector('.delete');
+                
+                editBtn.addEventListener('click', () => {
+                    openContactModal(contact);
+                });
+                
+                deleteBtn.addEventListener('click', () => {
+                    if (confirm(`Are you sure you want to delete ${contact.name}?`)) {
+                        deleteContact(contact.id);
+                    }
+                });
+            }
+            
+            // Add call functionality
+            const callBtn = contactElement.querySelector('.call');
+            callBtn.addEventListener('click', () => {
+                window.open(`tel:${contact.number}`);
+            });
+        }
+        
+        function openContactModal(contact = null) {
+            const modal = document.getElementById('addContactModal');
+            const title = document.getElementById('contactModalTitle');
+            const form = document.getElementById('contactForm');
+            
+            if (contact) {
+                // Editing existing contact
+                title.textContent = 'Edit Contact';
+                document.getElementById('contactId').value = contact.id;
+                document.getElementById('contact-name').value = contact.name;
+                document.getElementById('contact-number').value = contact.number;
+                document.getElementById('contact-type').value = contact.type || 'other';
+            } else {
+                // Adding new contact
+                title.textContent = 'Add New Contact';
+                form.reset();
+                document.getElementById('contactId').value = '';
+            }
+            
+            modal.style.display = 'flex';
+        }
+        
+        function closeContactModal() {
+            document.getElementById('addContactModal').style.display = 'none';
+        }
+        
+        function saveContact() {
+            const contactId = document.getElementById('contactId').value;
+            const contactData = {
+                name: document.getElementById('contact-name').value,
+                number: document.getElementById('contact-number').value,
+                type: document.getElementById('contact-type').value
+            };
+            
+            if (contactId) {
+                // Update existing contact
+                database.ref(`emergency_contacts/${userId}/${contactId}`).update(contactData)
+                    .then(() => {
+                        alert('Contact updated successfully!');
+                        closeContactModal();
+                    })
+                    .catch((error) => {
+                        alert('Error updating contact: ' + error.message);
+                    });
+            } else {
+                // Add new contact
+                database.ref(`emergency_contacts/${userId}`).push(contactData)
+                    .then(() => {
+                        alert('Contact added successfully!');
+                        closeContactModal();
+                    })
+                    .catch((error) => {
+                        alert('Error adding contact: ' + error.message);
+                    });
+            }
+        }
+        
+        function deleteContact(contactId) {
+            database.ref(`emergency_contacts/${userId}/${contactId}`).remove()
+                .then(() => {
+                    alert('Contact deleted successfully!');
+                })
+                .catch((error) => {
+                    alert('Error deleting contact: ' + error.message);
+                });
+        }
+        
+        function formatTime(timestamp) {
+            const now = new Date();
+            const alertTime = new Date(timestamp);
+            const diff = now - alertTime;
+            
+            const minutes = Math.floor(diff / 60000);
+            if (minutes < 1) return "Just now";
+            if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+            
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+            
+            const days = Math.floor(hours / 24);
+            return `${days} day${days === 1 ? '' : 's'} ago`;
+        }
+
+        function setupEventListeners() {
+            // Menu toggle
+            menuToggle.addEventListener('click', toggleSidebar);
+            
+            // Overlay click to close sidebar
+            overlay.addEventListener('click', toggleSidebar);
+            
+            // Navigation items
+            navItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    if (this.id === 'developerBtn') {
+                        developerModal.style.display = 'flex';
+                        return;
+                    }
+                    
+                    // Set active item
+                    navItems.forEach(navItem => navItem.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Get the page to show
+                    const page = this.getAttribute('data-page');
+                    
+                    // Update page title
+                    updatePageTitle(page);
+                    
+                    // Show the correct page section
+                    showPageSection(page);
+                    
+                    // Close sidebar on mobile
+                    if (window.innerWidth < 768) {
+                        toggleSidebar();
+                    }
+                });
+            });
+            
+            // Close modal
+            closeModal.addEventListener('click', () => {
+                developerModal.style.display = 'none';
+            });
+            
+            // Swipe detection
+            let touchStartX = 0;
+            let touchEndX = 0;
+            
+            document.addEventListener('touchstart', (e) => {
+                touchStartX = e.changedTouches[0].screenX;
+            });
+            
+            document.addEventListener('touchend', (e) => {
+                touchEndX = e.changedTouches[0].screenX;
+                handleSwipe();
+            });
+            
+            // Add contact button
+            addContactBtn.addEventListener('click', () => {
+                openContactModal();
+            });
+            
+            // Cancel contact button
+            cancelContactBtn.addEventListener('click', () => {
+                closeContactModal();
+            });
+            
+            // Save contact form
+            contactForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                saveContact();
+            });
+            
+            // Save settings button
+            saveSettingsBtn.addEventListener('click', saveUserSettings);
+            
+            // User dropdown toggle
+            userAvatar.addEventListener('click', (e) => {
+                e.stopPropagation();
+                userDropdown.classList.toggle('active');
+            });
+            
+            // Close dropdown when clicking outside
+            document.addEventListener('click', () => {
+                userDropdown.classList.remove('active');
+            });
+            
+            // User selection
+            document.querySelectorAll('.user-dropdown-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    const selectedUserId = this.getAttribute('data-user');
+                    switchUser(selectedUserId);
+                    userDropdown.classList.remove('active');
+                });
+            });
+            
+            // Profile picture upload with Base64 conversion
+            profileUpload.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    uploadProfilePicture(file);
+                }
+            });
+            
+            // Reset accident button
+            resetAccidentBtn.addEventListener('click', acknowledgeAccident);
+        }
+        
+        function toggleSidebar() {
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+            mainContent.classList.toggle('shifted');
+        }
+        
+        function handleSwipe() {
+            const swipeThreshold = 50;
+            
+            // Only allow swipe to open when sidebar is closed
+            if (!sidebar.classList.contains('active') && touchStartX - touchEndX > swipeThreshold) {
+                // Swipe left to open
+                if (touchStartX < 50) { // Only trigger if swipe starts near edge
+                    toggleSidebar();
+                }
+            }
+            // Swipe right to close
+            else if (sidebar.classList.contains('active') && touchEndX - touchStartX > swipeThreshold) {
+                toggleSidebar();
+            }
+        }
+        
+        function updatePageTitle(page) {
+            const titles = {
+                'dashboard': '<i class="fas fa-tachometer-alt"></i>Dashboard',
+                'tracking': '<i class="fas fa-map-marker-alt"></i>Live Tracking',
+                'accidents': '<i class="fas fa-exclamation-triangle"></i>Accident History',
+                'settings': '<i class="fas fa-user-cog"></i>User Settings',
+                'emergency': '<i class="fas fa-phone-alt"></i>Emergency Contacts',
+                'system': '<i class="fas fa-cog"></i>System Settings'
+            };
+            
+            document.querySelector('.header h1').innerHTML = titles[page] || titles['dashboard'];
+        }
+        
+        function showPageSection(page) {
+            // Hide all sections
+            pageSections.forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Show the selected section
+            const sectionId = `${page}-page`;
+            const section = document.getElementById(sectionId);
+            if (section) {
+                section.classList.add('active');
+                
+                // Initialize map if showing tracking page and not already initialized
+                if (page === 'tracking' && !trackingMapInitialized) {
+                    initTrackingMap();
+                }
+            }
+        }
+    </script>
+</body>
+</html>
