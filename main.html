@@ -174,24 +174,56 @@
             font-size: 1.2rem;
         }
 
-        .logout-btn {
-            background: none;
-            border: none;
-            color: var(--dark);
-            font-size: 0.9rem;
-            cursor: pointer;
+        .user-info {
             display: flex;
             align-items: center;
-            padding: 5px 10px;
+            position: relative;
+        }
+
+        .user-info img {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            margin-right: 8px;
+            cursor: pointer;
+            object-fit: cover;
+        }
+
+        .user-dropdown {
+            position: absolute;
+            top: 50px;
+            right: 0;
+            background-color: white;
             border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 10px;
+            width: 120px;
+            z-index: 100;
+            display: none;
         }
 
-        .logout-btn:hover {
-            background-color: rgba(0,0,0,0.05);
+        .user-dropdown.active {
+            display: block;
         }
 
-        .logout-btn i {
-            margin-right: 5px;
+        .user-dropdown-item {
+            padding: 8px 10px;
+            cursor: pointer;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+
+        .user-dropdown-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        .user-dropdown-item i {
+            margin-right: 8px;
+            width: 20px;
+            text-align: center;
+            font-size: 0.9rem;
         }
 
         /* Dashboard Cards */
@@ -1059,9 +1091,12 @@
             </div>
             <h1><i class="fas fa-tachometer-alt"></i>Dashboard</h1>
             <div class="user-info">
-                <button id="logoutBtn" class="logout-btn">
-                    <i class="fas fa-sign-out-alt"></i> Logout
-                </button>
+                <img src="https://via.placeholder.com/40" alt="User" id="user-avatar">
+                <div class="user-dropdown" id="userDropdown">
+                    <div class="user-dropdown-item" id="logoutBtn">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -1336,23 +1371,6 @@
     </button>
 
     <script>
-       // Check login state on load
-if (!localStorage.getItem('isLoggedIn')) {
-  window.location.href = 'index.html'; // Redirect if not logged in
-}
-
-// Logout button
-document.getElementById('logoutBtn').addEventListener('click', () => {
-  localStorage.removeItem('isLoggedIn');
-  window.location.href = 'index.html';
-});
-
-        // Prevent back button navigation
-        window.history.pushState(null, null, window.location.href);
-        window.onpopstate = function() {
-            window.history.pushState(null, null, window.location.href);
-        };
-
         // Firebase configuration
         const firebaseConfig = {
             apiKey: "AIzaSyDIMtKQqlR7_R35lkrDWVn1agPnGDaAUiY",
@@ -1383,6 +1401,8 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
         const contactForm = document.getElementById('contactForm');
         const addContactBtn = document.getElementById('addContactBtn');
         const saveSettingsBtn = document.getElementById('save-settings');
+        const userAvatar = document.getElementById('user-avatar');
+        const userDropdown = document.getElementById('userDropdown');
         const profilePicture = document.getElementById('profile-picture');
         const profileUpload = document.getElementById('profile-upload');
         const resetAccidentBtn = document.getElementById('resetAccidentBtn');
@@ -1404,17 +1424,21 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
         let isAccidentMarkerBlinking = false;
         let accidentMarkerInterval;
         
-        // Current user ID (only one user now)
-        const userId = 'user_001';
-        let currentUserData = {};
-        
         // Initialize the application
         document.addEventListener('DOMContentLoaded', () => {
             setupEventListeners();
             loadUserSettings();
             loadEmergencyContacts();
             startTripTimer();
-            setupLogout();
+            
+            // Check for last visited page
+            const lastPage = sessionStorage.getItem('lastPage') || 'dashboard';
+            const navItem = document.querySelector(`.nav-item[data-page="${lastPage}"]`);
+            if (navItem) {
+                navItem.click();
+            } else {
+                document.querySelector('.nav-item[data-page="dashboard"]').click();
+            }
         });
 
         function initMap() {
@@ -1512,7 +1536,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
 
         function setupLocationTracking() {
             // Center map when location updates
-            database.ref(`tracking/${userId}/location`).on('value', (snapshot) => {
+            database.ref('tracking/location').on('value', (snapshot) => {
                 if (snapshot.exists()) {
                     const location = snapshot.val();
                     const pos = new google.maps.LatLng(location.lat, location.lng);
@@ -1564,7 +1588,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
         }
         
         function setupAccidentDetection() {
-            database.ref(`accidents/${userId}/latest`).on('value', (snapshot) => {
+            database.ref('accidents/latest').on('value', (snapshot) => {
                 if (snapshot.exists()) {
                     const accident = snapshot.val();
                     if (accident.status !== 'resolved') {
@@ -1640,15 +1664,15 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
             
             // Add to accident history if not already there
             if (!accident.addedToHistory) {
-                const accidentId = database.ref(`accidents/${userId}/history`).push().key;
-                database.ref(`accidents/${userId}/history/${accidentId}`).set({
+                const accidentId = database.ref('accidents/history').push().key;
+                database.ref(`accidents/history/${accidentId}`).set({
                     ...accident,
                     timestamp: accident.timestamp || new Date().getTime(),
                     addedToHistory: true
                 });
                 
                 // Mark as added to history
-                database.ref(`accidents/${userId}/latest/addedToHistory`).set(true);
+                database.ref('accidents/latest/addedToHistory').set(true);
             }
         }
         
@@ -1670,7 +1694,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
         
         function acknowledgeAccident() {
             // Update the accident status in Firebase
-            database.ref(`accidents/${userId}/latest/status`).set('resolved')
+            database.ref('accidents/latest/status').set('resolved')
                 .then(() => {
                     resetAccidentMarker();
                 })
@@ -1696,13 +1720,13 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
         
         function setupFirebaseListeners() {
             // Remove previous listeners to avoid duplicates
-            database.ref(`users/${userId}`).off();
-            database.ref(`tracking/${userId}`).off();
-            database.ref(`alerts/${userId}`).off();
-            database.ref(`accidents/${userId}`).off();
+            database.ref('users').off();
+            database.ref('tracking').off();
+            database.ref('alerts').off();
+            database.ref('accidents').off();
             
             // Helmet status
-            database.ref(`users/${userId}/helmet_status`).on('value', (snapshot) => {
+            database.ref('users/helmet_status').on('value', (snapshot) => {
                 const isWorn = snapshot.val();
                 document.getElementById('helmet-status').textContent = isWorn ? "WORN" : "OFF";
                 const badge = document.getElementById('helmet-status-badge');
@@ -1710,7 +1734,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
                 badge.className = isWorn ? "card-status status-safe" : "card-status status-danger";
                 
                 // Add alert if helmet is removed while ignition is on
-                database.ref(`users/${userId}/ignition_status`).once('value').then((ignitionSnapshot) => {
+                database.ref('users/ignition_status').once('value').then((ignitionSnapshot) => {
                     if (ignitionSnapshot.val() && !isWorn) {
                         addAlert('Helmet Removed', 'Helmet was removed while vehicle is running', 'emergency', 'fa-exclamation-circle');
                     }
@@ -1718,7 +1742,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
             });
             
             // Alcohol status
-            database.ref(`users/${userId}/alcohol_status`).on('value', (snapshot) => {
+            database.ref('users/alcohol_status').on('value', (snapshot) => {
                 const alcoholDetected = snapshot.val();
                 document.getElementById('alcohol-level').textContent = alcoholDetected ? "0.08%" : "0.00%";
                 const badge = document.getElementById('alcohol-status-badge');
@@ -1731,7 +1755,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
             });
             
             // Ignition status
-            database.ref(`users/${userId}/ignition_status`).on('value', (snapshot) => {
+            database.ref('users/ignition_status').on('value', (snapshot) => {
                 const isOn = snapshot.val();
                 document.getElementById('ignition-status').textContent = isOn ? "ON" : "OFF";
                 const badge = document.getElementById('ignition-status-badge');
@@ -1740,9 +1764,9 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
             });
             
             // GPS tracking
-            database.ref(`tracking/${userId}`).on('value', (snapshot) => {
+            database.ref('tracking').on('value', (snapshot) => {
                 const data = snapshot.val();
-                if (data) {
+                if (data && data.speed !== undefined) {
                     // Update speed
                     const speed = Math.round(data.speed || 0);
                     document.getElementById('current-speed').textContent = speed;
@@ -1762,7 +1786,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
             });
             
             // Battery level
-            database.ref(`users/${userId}/battery_level`).on('value', (snapshot) => {
+            database.ref('users/battery_level').on('value', (snapshot) => {
                 const battery = snapshot.val() || 100;
                 document.getElementById('battery-level').textContent = `${battery}%`;
                 
@@ -1772,7 +1796,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
             });
             
             // Signal strength
-            database.ref(`users/${userId}/signal_strength`).on('value', (snapshot) => {
+            database.ref('users/signal_strength').on('value', (snapshot) => {
                 const strength = snapshot.val();
                 if (strength) {
                     const strengths = ["Poor", "Fair", "Good", "Excellent"];
@@ -1785,7 +1809,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
             });
             
             // System health
-            database.ref(`users/${userId}/system_health`).on('value', (snapshot) => {
+            database.ref('users/system_health').on('value', (snapshot) => {
                 const health = snapshot.val();
                 if (health) {
                     document.getElementById('system-health').textContent = health;
@@ -1797,7 +1821,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
             });
             
             // Alerts
-            database.ref(`alerts/${userId}`).limitToLast(3).on('value', (snapshot) => {
+            database.ref('alerts').limitToLast(3).on('value', (snapshot) => {
                 const alertsContainer = document.getElementById('alerts-container');
                 alertsContainer.innerHTML = '';
                 
@@ -1808,7 +1832,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
             });
             
             // Accident history
-            database.ref(`accidents/${userId}/history`).limitToLast(5).on('value', (snapshot) => {
+            database.ref('accidents/history').limitToLast(5).on('value', (snapshot) => {
                 const accidentsContainer = document.getElementById('accidents-container');
                 accidentsContainer.innerHTML = '';
                 
@@ -1831,7 +1855,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
         }
         
         function addAlert(title, message, type, icon) {
-            const alertId = database.ref(`alerts/${userId}`).push().key;
+            const alertId = database.ref('alerts').push().key;
             const alertData = {
                 title: title,
                 message: message,
@@ -1841,7 +1865,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
                 read: false
             };
             
-            database.ref(`alerts/${userId}/${alertId}`).set(alertData);
+            database.ref(`alerts/${alertId}`).set(alertData);
         }
         
         function addAlertToUI(alert) {
@@ -1892,19 +1916,19 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
         }
         
         function loadUserSettings() {
-            database.ref(`settings/${userId}`).once('value').then((snapshot) => {
+            database.ref('settings').once('value').then((snapshot) => {
                 const settings = snapshot.val();
                 
                 // Set default values if no settings exist
                 if (!settings) {
                     const defaultSettings = {
-                        name: currentUserData.name || 'Rider',
-                        email: currentUserData.email || '',
-                        phone: currentUserData.phone || '',
-                        vehicle: currentUserData.vehicle || 'motorcycle',
+                        name: 'Rider',
+                        email: '',
+                        phone: '',
+                        vehicle: 'motorcycle',
                         updatedAt: new Date().getTime()
                     };
-                    database.ref(`settings/${userId}`).set(defaultSettings);
+                    database.ref('settings').set(defaultSettings);
                     settings = defaultSettings;
                 }
                 
@@ -1919,12 +1943,15 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
                     // Check if it's a Base64 string or URL (for backward compatibility)
                     if (settings.profilePicture.startsWith('data:image')) {
                         profilePicture.src = settings.profilePicture;
+                        userAvatar.src = settings.profilePicture;
                     } else {
                         // Fallback for old URL-based images
                         profilePicture.src = settings.profilePicture;
+                        userAvatar.src = settings.profilePicture;
                     }
                 } else {
                     profilePicture.src = 'https://via.placeholder.com/120';
+                    userAvatar.src = 'https://via.placeholder.com/40';
                 }
             });
         }
@@ -1948,12 +1975,13 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
                 const base64Image = e.target.result;
                 
                 // Update profile picture in database and UI
-                database.ref(`settings/${userId}`).update({
+                database.ref('settings').update({
                     profilePicture: base64Image,
                     updatedAt: new Date().getTime()
                 })
                 .then(() => {
                     profilePicture.src = base64Image;
+                    userAvatar.src = base64Image;
                     alert('Profile picture updated successfully!');
                 })
                 .catch((error) => {
@@ -1983,7 +2011,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
                 settings.profilePicture = profilePicture.src;
             }
             
-            database.ref(`settings/${userId}`).update(settings)
+            database.ref('settings').update(settings)
                 .then(() => {
                     alert('Settings saved successfully!');
                 })
@@ -1993,7 +2021,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
         }
         
         function loadEmergencyContacts() {
-            database.ref(`emergency_contacts/${userId}`).on('value', (snapshot) => {
+            database.ref('emergency_contacts').on('value', (snapshot) => {
                 const contactsContainer = document.getElementById('contacts-container');
                 contactsContainer.innerHTML = '';
                 
@@ -2112,7 +2140,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
             
             if (contactId) {
                 // Update existing contact
-                database.ref(`emergency_contacts/${userId}/${contactId}`).update(contactData)
+                database.ref(`emergency_contacts/${contactId}`).update(contactData)
                     .then(() => {
                         alert('Contact updated successfully!');
                         closeContactModal();
@@ -2122,7 +2150,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
                     });
             } else {
                 // Add new contact
-                database.ref(`emergency_contacts/${userId}`).push(contactData)
+                database.ref('emergency_contacts').push(contactData)
                     .then(() => {
                         alert('Contact added successfully!');
                         closeContactModal();
@@ -2134,7 +2162,7 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
         }
         
         function deleteContact(contactId) {
-            database.ref(`emergency_contacts/${userId}/${contactId}`).remove()
+            database.ref(`emergency_contacts/${contactId}`).remove()
                 .then(() => {
                     alert('Contact deleted successfully!');
                 })
@@ -2159,16 +2187,6 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
             return `${days} day${days === 1 ? '' : 's'} ago`;
         }
 
-        function setupLogout() {
-            logoutBtn.addEventListener('click', () => {
-                // Clear login flag
-                localStorage.removeItem('isLoggedIn');
-                
-                // Redirect to login page
-                window.location.href = 'index.html';
-            });
-        }
-
         function setupEventListeners() {
             // Menu toggle
             menuToggle.addEventListener('click', toggleSidebar);
@@ -2190,6 +2208,9 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
                     
                     // Get the page to show
                     const page = this.getAttribute('data-page');
+                    
+                    // Store current page in session storage
+                    sessionStorage.setItem('lastPage', page);
                     
                     // Update page title
                     updatePageTitle(page);
@@ -2238,6 +2259,25 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
             
             // Save settings button
             saveSettingsBtn.addEventListener('click', saveUserSettings);
+            
+            // User dropdown toggle
+            userAvatar.addEventListener('click', (e) => {
+                e.stopPropagation();
+                userDropdown.classList.toggle('active');
+            });
+            
+            // Close dropdown when clicking outside
+            document.addEventListener('click', () => {
+                userDropdown.classList.remove('active');
+            });
+            
+            // Logout button
+            logoutBtn.addEventListener('click', () => {
+                // Store the current page in sessionStorage before logging out
+                const activePage = document.querySelector('.nav-item.active').getAttribute('data-page');
+                sessionStorage.setItem('lastPage', activePage);
+                window.location.href = 'index.html';
+            });
             
             // Profile picture upload with Base64 conversion
             profileUpload.addEventListener('change', (e) => {
