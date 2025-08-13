@@ -1370,6 +1370,7 @@
         <i class="fas fa-check-circle"></i> Acknowledge Accident
     </button>
 
+
     <script>
         // Firebase configuration
         const firebaseConfig = {
@@ -1381,7 +1382,7 @@
             appId: "1:426356613178:web:4238d6c44f20331f091503"
         };
         
-        // Initialize Firebase (without storage)
+        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
         
@@ -1430,6 +1431,7 @@
             loadUserSettings();
             loadEmergencyContacts();
             startTripTimer();
+            setupFirebaseListeners();
             
             // Check for last visited page
             const lastPage = sessionStorage.getItem('lastPage') || 'dashboard';
@@ -1442,15 +1444,12 @@
         });
 
         function initMap() {
-            // Default location (Manila coordinates)
             const defaultLocation = { lat: 14.5995, lng: 120.9842 };
-            
-            // Check if map element exists
             const mapElement = document.getElementById("map");
+            
             if (!mapElement) return;
             
             try {
-                // Remove loading spinner
                 const loadingElement = mapElement.querySelector('.map-loading');
                 if (loadingElement) loadingElement.remove();
                 
@@ -1480,13 +1479,11 @@
 
         function initTrackingMap() {
             const defaultLocation = { lat: 14.5995, lng: 120.9842 };
-            
-            // Check if tracking map element exists
             const trackingMapElement = document.getElementById("tracking-map");
+            
             if (!trackingMapElement) return;
             
             try {
-                // Remove loading spinner
                 const loadingElement = trackingMapElement.querySelector('.map-loading');
                 if (loadingElement) loadingElement.remove();
                 
@@ -1508,7 +1505,6 @@
                     }
                 });
                 
-                // Info window for marker
                 const infoWindow = new google.maps.InfoWindow({
                     content: "Loading location..."
                 });
@@ -1535,22 +1531,18 @@
         }
 
         function setupLocationTracking() {
-            // Center map when location updates
-            database.ref('tracking/location').on('value', (snapshot) => {
+            database.ref('tracking/user_001/location').on('value', (snapshot) => {
                 if (snapshot.exists()) {
                     const location = snapshot.val();
                     const pos = new google.maps.LatLng(location.lat, location.lng);
                     
-                    // Update the tracking map if initialized
                     if (trackingMapInitialized) {
                         trackingMap.panTo(pos);
                         trackingMarker.setPosition(pos);
                         
-                        // Add to path coordinates
                         pathCoordinates.push(pos);
                         pathPolyline.setPath(pathCoordinates);
                         
-                        // Update info window
                         const infoWindow = new google.maps.InfoWindow({
                             content: `
                                 <div style="font-weight: bold;">Current Location</div>
@@ -1561,13 +1553,11 @@
                         });
                     }
                     
-                    // Update the dashboard map if initialized
                     if (mapInitialized) {
                         marker.setPosition(pos);
                         map.panTo(pos);
                     }
                     
-                    // Update distance traveled
                     if (pathCoordinates.length > 1) {
                         const lastPos = pathCoordinates[pathCoordinates.length - 2];
                         const distance = google.maps.geometry.spherical.computeDistanceBetween(lastPos, pos);
@@ -1575,12 +1565,10 @@
                         document.getElementById('tracking-distance').textContent = (totalDistance + distance/1000).toFixed(2) + ' km';
                     }
                     
-                    // Update location text
                     const locationText = `${location.lat.toFixed(6)}, ${location.lng.toFixed(6)}`;
                     document.getElementById('current-location').textContent = locationText;
                     document.getElementById('tracking-location').textContent = locationText;
                     
-                    // Update last update time
                     const now = new Date();
                     document.getElementById('last-update').textContent = now.toLocaleTimeString();
                 }
@@ -1588,7 +1576,7 @@
         }
         
         function setupAccidentDetection() {
-            database.ref('accidents/latest').on('value', (snapshot) => {
+            database.ref('accidents/user_001/latest').on('value', (snapshot) => {
                 if (snapshot.exists()) {
                     const accident = snapshot.val();
                     if (accident.status !== 'resolved') {
@@ -1609,17 +1597,14 @@
             
             const accidentLocation = new google.maps.LatLng(accident.location.lat, accident.location.lng);
             
-            // Remove previous accident marker if exists
             if (accidentMarker) {
                 accidentMarker.setMap(null);
             }
             
-            // Clear any existing blinking interval
             if (accidentMarkerInterval) {
                 clearInterval(accidentMarkerInterval);
             }
             
-            // Create new accident marker
             accidentMarker = new google.maps.Marker({
                 position: accidentLocation,
                 map: map,
@@ -1629,7 +1614,6 @@
                 }
             });
             
-            // Add info window
             const infoWindow = new google.maps.InfoWindow({
                 content: `
                     <div style="font-weight: bold; color: red;">ACCIDENT DETECTED</div>
@@ -1642,7 +1626,6 @@
             infoWindow.open(map, accidentMarker);
             accidentMarker.addListener('click', () => infoWindow.open(map, accidentMarker));
             
-            // Make marker blink
             isAccidentMarkerBlinking = true;
             let isVisible = true;
             
@@ -1654,25 +1637,22 @@
                 
                 isVisible = !isVisible;
                 accidentMarker.setVisible(isVisible);
-            }, 500); // Blink every 500ms
+            }, 500);
             
-            // Center map on accident location
             map.panTo(accidentLocation);
             if (trackingMap) {
                 trackingMap.panTo(accidentLocation);
             }
             
-            // Add to accident history if not already there
             if (!accident.addedToHistory) {
-                const accidentId = database.ref('accidents/history').push().key;
-                database.ref(`accidents/history/${accidentId}`).set({
+                const accidentId = database.ref('accidents/user_001/history').push().key;
+                database.ref(`accidents/user_001/history/${accidentId}`).set({
                     ...accident,
                     timestamp: accident.timestamp || new Date().getTime(),
                     addedToHistory: true
                 });
                 
-                // Mark as added to history
-                database.ref('accidents/latest/addedToHistory').set(true);
+                database.ref('accidents/user_001/latest/addedToHistory').set(true);
             }
         }
         
@@ -1693,8 +1673,7 @@
         }
         
         function acknowledgeAccident() {
-            // Update the accident status in Firebase
-            database.ref('accidents/latest/status').set('resolved')
+            database.ref('accidents/user_001/latest/status').set('resolved')
                 .then(() => {
                     resetAccidentMarker();
                 })
@@ -1719,22 +1698,15 @@
         }
         
         function setupFirebaseListeners() {
-            // Remove previous listeners to avoid duplicates
-            database.ref('users').off();
-            database.ref('tracking').off();
-            database.ref('alerts').off();
-            database.ref('accidents').off();
-            
             // Helmet status
-            database.ref('users/helmet_status').on('value', (snapshot) => {
+            database.ref('users/user_001/helmet_status').on('value', (snapshot) => {
                 const isWorn = snapshot.val();
                 document.getElementById('helmet-status').textContent = isWorn ? "WORN" : "OFF";
                 const badge = document.getElementById('helmet-status-badge');
                 badge.textContent = isWorn ? "ACTIVE" : "INACTIVE";
                 badge.className = isWorn ? "card-status status-safe" : "card-status status-danger";
                 
-                // Add alert if helmet is removed while ignition is on
-                database.ref('users/ignition_status').once('value').then((ignitionSnapshot) => {
+                database.ref('users/user_001/ignition_status').once('value').then((ignitionSnapshot) => {
                     if (ignitionSnapshot.val() && !isWorn) {
                         addAlert('Helmet Removed', 'Helmet was removed while vehicle is running', 'emergency', 'fa-exclamation-circle');
                     }
@@ -1742,7 +1714,7 @@
             });
             
             // Alcohol status
-            database.ref('users/alcohol_status').on('value', (snapshot) => {
+            database.ref('users/user_001/alcohol_status').on('value', (snapshot) => {
                 const alcoholDetected = snapshot.val();
                 document.getElementById('alcohol-level').textContent = alcoholDetected ? "0.08%" : "0.00%";
                 const badge = document.getElementById('alcohol-status-badge');
@@ -1755,7 +1727,7 @@
             });
             
             // Ignition status
-            database.ref('users/ignition_status').on('value', (snapshot) => {
+            database.ref('users/user_001/ignition_status').on('value', (snapshot) => {
                 const isOn = snapshot.val();
                 document.getElementById('ignition-status').textContent = isOn ? "ON" : "OFF";
                 const badge = document.getElementById('ignition-status-badge');
@@ -1764,15 +1736,13 @@
             });
             
             // GPS tracking
-            database.ref('tracking').on('value', (snapshot) => {
+            database.ref('tracking/user_001').on('value', (snapshot) => {
                 const data = snapshot.val();
                 if (data && data.speed !== undefined) {
-                    // Update speed
                     const speed = Math.round(data.speed || 0);
                     document.getElementById('current-speed').textContent = speed;
                     document.getElementById('tracking-speed').textContent = `${speed} km/h`;
                     
-                    // Update speed status
                     const speedBadge = document.getElementById('speed-status-badge');
                     if (speed > 80) {
                         speedBadge.className = "card-status status-danger";
@@ -1786,7 +1756,7 @@
             });
             
             // Battery level
-            database.ref('users/battery_level').on('value', (snapshot) => {
+            database.ref('users/user_001/battery_level').on('value', (snapshot) => {
                 const battery = snapshot.val() || 100;
                 document.getElementById('battery-level').textContent = `${battery}%`;
                 
@@ -1796,7 +1766,7 @@
             });
             
             // Signal strength
-            database.ref('users/signal_strength').on('value', (snapshot) => {
+            database.ref('users/user_001/signal_strength').on('value', (snapshot) => {
                 const strength = snapshot.val();
                 if (strength) {
                     const strengths = ["Poor", "Fair", "Good", "Excellent"];
@@ -1809,7 +1779,7 @@
             });
             
             // System health
-            database.ref('users/system_health').on('value', (snapshot) => {
+            database.ref('users/user_001/system_health').on('value', (snapshot) => {
                 const health = snapshot.val();
                 if (health) {
                     document.getElementById('system-health').textContent = health;
@@ -1832,7 +1802,7 @@
             });
             
             // Accident history
-            database.ref('accidents/history').limitToLast(5).on('value', (snapshot) => {
+            database.ref('accidents/user_001/history').limitToLast(5).on('value', (snapshot) => {
                 const accidentsContainer = document.getElementById('accidents-container');
                 accidentsContainer.innerHTML = '';
                 
@@ -1897,7 +1867,6 @@
             const accidentElement = document.createElement('div');
             accidentElement.className = 'accident-item';
             
-            // Determine severity class
             let severityClass = 'severity-low';
             if (accident.severity === 'high') severityClass = 'severity-high';
             else if (accident.severity === 'medium') severityClass = 'severity-medium';
@@ -1919,7 +1888,6 @@
             database.ref('settings').once('value').then((snapshot) => {
                 const settings = snapshot.val();
                 
-                // Set default values if no settings exist
                 if (!settings) {
                     const defaultSettings = {
                         name: 'Rider',
@@ -1932,20 +1900,16 @@
                     settings = defaultSettings;
                 }
                 
-                // Update form fields
                 document.getElementById('user-name').value = settings.name || '';
                 document.getElementById('user-email').value = settings.email || '';
                 document.getElementById('user-phone').value = settings.phone || '';
                 document.getElementById('user-vehicle').value = settings.vehicle || 'motorcycle';
                 
-                // Load profile picture if available
                 if (settings.profilePicture) {
-                    // Check if it's a Base64 string or URL (for backward compatibility)
                     if (settings.profilePicture.startsWith('data:image')) {
                         profilePicture.src = settings.profilePicture;
                         userAvatar.src = settings.profilePicture;
                     } else {
-                        // Fallback for old URL-based images
                         profilePicture.src = settings.profilePicture;
                         userAvatar.src = settings.profilePicture;
                     }
@@ -1957,13 +1921,11 @@
         }
         
         function uploadProfilePicture(file) {
-            // Validate file type
             if (!file.type.match('image.*')) {
                 alert('Please select an image file (JPEG, PNG, etc.)');
                 return;
             }
 
-            // Validate file size (2MB max)
             if (file.size > 2 * 1024 * 1024) {
                 alert('File is too large. Please select an image smaller than 2MB.');
                 return;
@@ -1974,7 +1936,6 @@
             reader.onload = function(e) {
                 const base64Image = e.target.result;
                 
-                // Update profile picture in database and UI
                 database.ref('settings').update({
                     profilePicture: base64Image,
                     updatedAt: new Date().getTime()
@@ -1993,7 +1954,6 @@
                 alert('Error reading file: ' + error.message);
             };
             
-            // Read the file as Data URL (Base64)
             reader.readAsDataURL(file);
         }
 
@@ -2006,7 +1966,6 @@
                 updatedAt: new Date().getTime()
             };
             
-            // Preserve existing profile picture if not changed
             if (profilePicture.src.startsWith('data:image')) {
                 settings.profilePicture = profilePicture.src;
             }
@@ -2021,7 +1980,7 @@
         }
         
         function loadEmergencyContacts() {
-            database.ref('emergency_contacts').on('value', (snapshot) => {
+            database.ref('emergency_contacts/user_001').on('value', (snapshot) => {
                 const contactsContainer = document.getElementById('contacts-container');
                 contactsContainer.innerHTML = '';
                 
@@ -2033,7 +1992,6 @@
                     });
                 }
                 
-                // Add default emergency services contact (can't be deleted)
                 const defaultContact = {
                     id: 'default',
                     name: 'Emergency Services',
@@ -2050,7 +2008,6 @@
             contactElement.className = 'contact-item';
             contactElement.dataset.id = contact.id;
             
-            // Determine icon based on contact type
             let icon = 'fa-user';
             if (contact.type === 'default') icon = 'fa-ambulance';
             else if (contact.type === 'family') icon = 'fa-home';
@@ -2081,7 +2038,6 @@
             
             contactsContainer.appendChild(contactElement);
             
-            // Add event listeners for the buttons
             if (contact.type !== 'default') {
                 const editBtn = contactElement.querySelector('.edit');
                 const deleteBtn = contactElement.querySelector('.delete');
@@ -2097,7 +2053,6 @@
                 });
             }
             
-            // Add call functionality
             const callBtn = contactElement.querySelector('.call');
             callBtn.addEventListener('click', () => {
                 window.open(`tel:${contact.number}`);
@@ -2110,14 +2065,12 @@
             const form = document.getElementById('contactForm');
             
             if (contact) {
-                // Editing existing contact
                 title.textContent = 'Edit Contact';
                 document.getElementById('contactId').value = contact.id;
                 document.getElementById('contact-name').value = contact.name;
                 document.getElementById('contact-number').value = contact.number;
                 document.getElementById('contact-type').value = contact.type || 'other';
             } else {
-                // Adding new contact
                 title.textContent = 'Add New Contact';
                 form.reset();
                 document.getElementById('contactId').value = '';
@@ -2139,8 +2092,7 @@
             };
             
             if (contactId) {
-                // Update existing contact
-                database.ref(`emergency_contacts/${contactId}`).update(contactData)
+                database.ref(`emergency_contacts/user_001/${contactId}`).update(contactData)
                     .then(() => {
                         alert('Contact updated successfully!');
                         closeContactModal();
@@ -2149,8 +2101,7 @@
                         alert('Error updating contact: ' + error.message);
                     });
             } else {
-                // Add new contact
-                database.ref('emergency_contacts').push(contactData)
+                database.ref('emergency_contacts/user_001').push(contactData)
                     .then(() => {
                         alert('Contact added successfully!');
                         closeContactModal();
@@ -2162,7 +2113,7 @@
         }
         
         function deleteContact(contactId) {
-            database.ref(`emergency_contacts/${contactId}`).remove()
+            database.ref(`emergency_contacts/user_001/${contactId}`).remove()
                 .then(() => {
                     alert('Contact deleted successfully!');
                 })
@@ -2188,13 +2139,9 @@
         }
 
         function setupEventListeners() {
-            // Menu toggle
             menuToggle.addEventListener('click', toggleSidebar);
-            
-            // Overlay click to close sidebar
             overlay.addEventListener('click', toggleSidebar);
             
-            // Navigation items
             navItems.forEach(item => {
                 item.addEventListener('click', function() {
                     if (this.id === 'developerBtn') {
@@ -2202,33 +2149,21 @@
                         return;
                     }
                     
-                    // Set active item
                     navItems.forEach(navItem => navItem.classList.remove('active'));
                     this.classList.add('active');
                     
-                    // Get the page to show
                     const page = this.getAttribute('data-page');
-                    
-                    // Store current page in session storage
                     sessionStorage.setItem('lastPage', page);
-                    
-                    // Update page title
                     updatePageTitle(page);
-                    
-                    // Show the correct page section
                     showPageSection(page);
-                    
-                    // Close sidebar on mobile
                     toggleSidebar();
                 });
             });
             
-            // Close modal
             closeModal.addEventListener('click', () => {
                 developerModal.style.display = 'none';
             });
             
-            // Swipe detection
             let touchStartX = 0;
             let touchEndX = 0;
             
@@ -2241,45 +2176,36 @@
                 handleSwipe();
             });
             
-            // Add contact button
             addContactBtn.addEventListener('click', () => {
                 openContactModal();
             });
             
-            // Cancel contact button
             cancelContactBtn.addEventListener('click', () => {
                 closeContactModal();
             });
             
-            // Save contact form
             contactForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 saveContact();
             });
             
-            // Save settings button
             saveSettingsBtn.addEventListener('click', saveUserSettings);
             
-            // User dropdown toggle
             userAvatar.addEventListener('click', (e) => {
                 e.stopPropagation();
                 userDropdown.classList.toggle('active');
             });
             
-            // Close dropdown when clicking outside
             document.addEventListener('click', () => {
                 userDropdown.classList.remove('active');
             });
             
-            // Logout button
             logoutBtn.addEventListener('click', () => {
-                // Store the current page in sessionStorage before logging out
                 const activePage = document.querySelector('.nav-item.active').getAttribute('data-page');
                 sessionStorage.setItem('lastPage', activePage);
                 window.location.href = 'index.html';
             });
             
-            // Profile picture upload with Base64 conversion
             profileUpload.addEventListener('change', (e) => {
                 const file = e.target.files[0];
                 if (file) {
@@ -2287,7 +2213,6 @@
                 }
             });
             
-            // Reset accident button
             resetAccidentBtn.addEventListener('click', acknowledgeAccident);
         }
         
@@ -2299,14 +2224,11 @@
         function handleSwipe() {
             const swipeThreshold = 50;
             
-            // Only allow swipe to open when sidebar is closed
             if (!sidebar.classList.contains('active') && touchStartX - touchEndX > swipeThreshold) {
-                // Swipe left to open
-                if (touchStartX < 50) { // Only trigger if swipe starts near edge
+                if (touchStartX < 50) {
                     toggleSidebar();
                 }
             }
-            // Swipe right to close
             else if (sidebar.classList.contains('active') && touchEndX - touchStartX > swipeThreshold) {
                 toggleSidebar();
             }
@@ -2326,18 +2248,15 @@
         }
         
         function showPageSection(page) {
-            // Hide all sections
             pageSections.forEach(section => {
                 section.classList.remove('active');
             });
             
-            // Show the selected section
             const sectionId = `${page}-page`;
             const section = document.getElementById(sectionId);
             if (section) {
                 section.classList.add('active');
                 
-                // Initialize map if showing tracking page and not already initialized
                 if (page === 'tracking' && !trackingMapInitialized) {
                     initTrackingMap();
                 }
